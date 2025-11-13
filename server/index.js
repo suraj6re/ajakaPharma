@@ -15,8 +15,15 @@ connectDB(process.env.MONGODB_URI);
 const app = express();
 
 // CORS configuration - MUST be before other middleware
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+  process.env.RENDER_EXTERNAL_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -50,6 +57,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve static files from React build (for production)
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+}
+
 // Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -78,7 +91,14 @@ app.use('/api/email', require('./routes/emailRoutes'));
 // Legacy routes have been replaced with new controllers
 // ============================================
 
-// Handle 404 errors
+// Serve React app for any other routes (must be after API routes)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
+
+// Handle 404 errors for API routes
 app.use(notFound);
 
 // Global error handler
