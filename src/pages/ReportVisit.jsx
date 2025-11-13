@@ -128,11 +128,21 @@ const ReportVisit = () => {
           mr: user._id || user.id,
           doctor: formData.doctorId,
           visitReport: visitId,
-          items: finalOrders.map(o => ({
-            product: o.product,
-            quantity: parseInt(o.quantity)
-          })),
-          orderType: 'doctor'
+          items: finalOrders.map(o => {
+            // Find product to get price
+            const product = products.find(p => p._id === o.product);
+            const unitPrice = product?.businessInfo?.mrp || product?.price || 0;
+            
+            return {
+              product: o.product,
+              quantity: parseInt(o.quantity),
+              unitPrice: unitPrice
+            };
+          }),
+          orderDetails: {
+            orderType: 'Doctor Order',
+            orderDate: new Date()
+          }
         };
         await createOrder(orderData);
       }
