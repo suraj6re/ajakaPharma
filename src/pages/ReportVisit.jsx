@@ -287,14 +287,46 @@ const ReportVisit = () => {
                 </div>
                 <div>
                   <label className="form-label">Products Discussed *</label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-lg">
-                    {products.map(p => (
-                      <label key={p._id} className="flex items-center space-x-2 cursor-pointer">
-                        <input type="checkbox" checked={formData.productsDiscussed.includes(p._id)} onChange={() => handleProductSelection(p._id)} className="h-4 w-4 rounded" />
-                        <span>{p.product_name || p.name}</span>
-                      </label>
-                    ))}
-                  </div>
+                  {products.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4 border rounded-lg bg-gray-50 max-h-96 overflow-y-auto">
+                      {products.map(p => (
+                        <label 
+                          key={p._id} 
+                          className={`flex items-start space-x-3 p-3 rounded-lg cursor-pointer transition-all ${
+                            formData.productsDiscussed.includes(p._id) 
+                              ? 'bg-primary-50 border-2 border-primary-500' 
+                              : 'bg-white border-2 border-gray-200 hover:border-primary-300'
+                          }`}
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={formData.productsDiscussed.includes(p._id)} 
+                            onChange={() => handleProductSelection(p._id)} 
+                            className="h-5 w-5 rounded text-primary-600 mt-0.5 flex-shrink-0" 
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 text-sm">
+                              {p.basicInfo?.name || p.product_name || p.name || 'Unknown Product'}
+                            </div>
+                            {p.basicInfo?.category && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {p.basicInfo.category}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 border rounded-lg bg-gray-50 text-center text-gray-500">
+                      No products available
+                    </div>
+                  )}
+                  {formData.productsDiscussed.length > 0 && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      Selected: {formData.productsDiscussed.length} product(s)
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="notes" className="form-label">Notes / Feedback *</label>
@@ -308,12 +340,34 @@ const ReportVisit = () => {
               <div className="space-y-4">
                 {orders.map((order, index) => (
                   <div key={index} className="flex items-center space-x-4">
-                    <select value={order.product} onChange={(e) => handleOrderChange(index, 'product', e.target.value)} className="form-input w-1/2">
+                    <select 
+                      value={order.product} 
+                      onChange={(e) => handleOrderChange(index, 'product', e.target.value)} 
+                      className="form-input w-1/2"
+                    >
                       <option value="">Select Product</option>
-                      {products.map(p => <option key={p._id} value={p._id}>{p.product_name || p.name}</option>)}
+                      {products.map(p => (
+                        <option key={p._id} value={p._id}>
+                          {p.basicInfo?.name || p.product_name || p.name || 'Unknown Product'}
+                          {p.basicInfo?.category && ` - ${p.basicInfo.category}`}
+                        </option>
+                      ))}
                     </select>
-                    <input type="number" min="1" value={order.quantity} onChange={(e) => handleOrderChange(index, 'quantity', e.target.value)} className="form-input w-1/4" placeholder="Qty" />
-                    <button type="button" onClick={() => removeOrderLine(index)} className="btn-danger-secondary">Remove</button>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      value={order.quantity} 
+                      onChange={(e) => handleOrderChange(index, 'quantity', e.target.value)} 
+                      className="form-input w-1/4" 
+                      placeholder="Qty" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => removeOrderLine(index)} 
+                      className="btn-danger-secondary"
+                    >
+                      Remove
+                    </button>
                   </div>
                 ))}
                 <button type="button" onClick={addOrderLine} className="btn-secondary">+ Add Order Line</button>
