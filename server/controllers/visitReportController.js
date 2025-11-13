@@ -97,7 +97,7 @@ const createVisitReport = asyncHandler(async (req, res) => {
         samplesGiven: 0,
         interestLevel: 'Medium'
       })) : [],
-      discussionPoints: notes || '',
+      notes: notes || '',
       visitOutcome: 'Positive'
     };
   }
@@ -113,7 +113,7 @@ const createVisitReport = asyncHandler(async (req, res) => {
     },
     interaction: interaction || {
       productsDiscussed: [],
-      discussionPoints: '',
+      notes: '',
       visitOutcome: 'Positive'
     },
     orders: orders || [],
@@ -158,8 +158,8 @@ const createVisitReport = asyncHandler(async (req, res) => {
   }
   
   await visit.populate([
-    { path: 'mr', select: 'personalInfo.name employeeId' },
-    { path: 'doctor', select: 'personalInfo.name doctorId' },
+    { path: 'mr', select: 'name employeeId' },
+    { path: 'doctor', select: 'name place' },
     { path: 'interaction.productsDiscussed.product', select: 'basicInfo.name' }
   ]);
   
