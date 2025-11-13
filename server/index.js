@@ -93,13 +93,18 @@ app.use('/api/email', require('./routes/emailRoutes'));
 
 // Serve React app for any other routes (must be after API routes)
 if (process.env.NODE_ENV === 'production') {
-  app.get('/*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  app.use((req, res, next) => {
+    // If it's not an API route, serve the React app
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(__dirname, '../dist/index.html'));
+    } else {
+      next();
+    }
   });
-} else {
-  // Handle 404 errors for API routes in development
-  app.use(notFound);
 }
+
+// Handle 404 errors for API routes
+app.use(notFound);
 
 // Global error handler
 app.use(globalErrorHandler);
