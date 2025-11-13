@@ -13,7 +13,7 @@ const getAllVisitReports = asyncHandler(async (req, res) => {
   const query = {};
   
   // MR can only see their own visits
-  const userRole = req.user.workInfo?.role || req.user.role;
+  const userRole = req.user.role;
   if (userRole?.toLowerCase() === 'mr') {
     query.mr = req.user._id;
   }
@@ -33,11 +33,11 @@ const getAllVisitReports = asyncHandler(async (req, res) => {
   }
   
   const visits = await VisitReport.find(query)
-    .populate('mr', 'personalInfo.name employeeId workInfo.territory')
-    .populate('doctor', 'personalInfo.name doctorId contactInfo.address.city')
+    .populate('mr', 'name employeeId territory')
+    .populate('doctor', 'name place')
     .populate('interaction.productsDiscussed.product', 'basicInfo.name productId')
     .populate('orders.product', 'basicInfo.name productId')
-    .populate('approvedBy', 'personalInfo.name')
+    .populate('approvedBy', 'name')
     .select('-__v')
     .sort({ 'visitDetails.visitDate': -1 });
   
@@ -54,11 +54,11 @@ const getAllVisitReports = asyncHandler(async (req, res) => {
  */
 const getVisitReportById = asyncHandler(async (req, res) => {
   const visit = await VisitReport.findById(req.params.id)
-    .populate('mr', 'personalInfo.name employeeId workInfo.territory')
-    .populate('doctor', 'personalInfo contactInfo practiceInfo')
+    .populate('mr', 'name employeeId territory')
+    .populate('doctor', 'name qualification place')
     .populate('interaction.productsDiscussed.product', 'basicInfo medicalInfo')
     .populate('orders.product', 'basicInfo businessInfo')
-    .populate('approvedBy', 'personalInfo.name')
+    .populate('approvedBy', 'name')
     .select('-__v');
   
   if (!visit) {
@@ -66,7 +66,7 @@ const getVisitReportById = asyncHandler(async (req, res) => {
   }
   
   // Check if MR has access
-  const userRole = req.user.workInfo?.role || req.user.role;
+  const userRole = req.user.role;
   if (userRole?.toLowerCase() === 'mr' && visit.mr._id.toString() !== req.user._id.toString()) {
     return ApiResponse.forbidden(res, 'Access denied. You can only view your own visit reports.');
   }
