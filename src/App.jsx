@@ -5,10 +5,10 @@ import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
 import MRDashboard from './pages/MRDashboard';
 import ReportVisit from './pages/ReportVisit';
-import StockistOrder from './pages/StockistOrder';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminReports from './pages/AdminReports';
+import AdminOrders from './pages/AdminOrders';
 import AdminDoctors from './pages/AdminDoctors';
 import MyDoctors from './pages/MyDoctors';
 import AdminMRs from './pages/AdminMRs';
@@ -115,14 +115,6 @@ const AppRoutes = () => {
           } 
         />
         <Route 
-          path="/stockist-order" 
-          element={
-            <ProtectedRoute requiredRole={"MR"}>
-              <StockistOrder />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
           path="/profile" 
           element={
             <ProtectedRoute requiredRole={"MR"}>
@@ -153,6 +145,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute requiredRole={"Admin"}>
               <AdminReports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin-orders" 
+          element={
+            <ProtectedRoute requiredRole={"Admin"}>
+              <AdminOrders />
             </ProtectedRoute>
           } 
         />

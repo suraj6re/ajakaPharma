@@ -11,7 +11,8 @@ import {
   MapPinIcon,
   CheckCircleIcon,
   ClockIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -110,14 +111,6 @@ const MRDashboard = () => {
       hoverColor: 'hover:bg-blue-600'
     },
     {
-      title: 'Place Order',
-      description: 'Create new stockist order',
-      icon: TruckIcon,
-      href: '/stockist-order',
-      color: 'bg-green-500',
-      hoverColor: 'hover:bg-green-600'
-    },
-    {
       title: 'My Doctors',
       description: 'Manage doctor database',
       icon: UserGroupIcon,
@@ -126,12 +119,12 @@ const MRDashboard = () => {
       hoverColor: 'hover:bg-purple-600'
     },
     {
-      title: 'View Analytics',
-      description: 'Performance insights',
-      icon: ChartBarIcon,
-      href: '/analytics',
-      color: 'bg-orange-500',
-      hoverColor: 'hover:bg-orange-600'
+      title: 'My Profile',
+      description: 'View and edit profile',
+      icon: UserCircleIcon,
+      href: '/profile',
+      color: 'bg-green-500',
+      hoverColor: 'hover:bg-green-600'
     }
   ];
 
@@ -227,7 +220,7 @@ const MRDashboard = () => {
           {/* Quick Actions */}
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {quickActions.map((action, index) => (
                 <motion.div
                   key={action.title}

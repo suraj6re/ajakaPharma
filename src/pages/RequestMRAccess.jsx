@@ -60,22 +60,16 @@ const RequestMRAccess = () => {
                 throw new Error('Please enter a valid 10-digit phone number');
             }
 
-            // Save to localStorage for now
-            const existingRequests = JSON.parse(localStorage.getItem('mr_requests') || '[]');
-            const newRequest = {
-                id: Date.now().toString(),
+            // Submit to backend API
+            const { submitMRRequest } = await import('../services/api');
+            
+            await submitMRRequest({
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
                 area: formData.area,
-                experience: formData.experience || '',
-                status: 'pending',
-                created_at: new Date().toISOString()
-            };
-
-            existingRequests.push(newRequest);
-            localStorage.setItem('mr_requests', JSON.stringify(existingRequests));
-            console.log('Request saved to localStorage');
+                experience: formData.experience || ''
+            });
 
             setSuccess(true);
             toast.success('🎉 Application submitted successfully!\nYou will receive a confirmation email shortly.');

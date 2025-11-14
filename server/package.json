@@ -6,6 +6,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js",
+    "seed-sample": "node seed-sample-data.js",
+    "test-db": "node test-connection.js",
     "test": "jest",
     "test:watch": "jest --watch"
   },

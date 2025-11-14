@@ -9,12 +9,12 @@ import {
   EnvelopeIcon,
   PhoneIcon,
   MapPinIcon,
-  XMarkIcon
+  XMarkIcon,
+  ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline';
-import { sendApprovalEmail, sendRejectionEmail } from '../services/emailService';
-// Using local storage for demo - in production would use Firestore
 import AdminNavbar from '../components/AdminNavbar';
 import AdminSidebar from '../components/AdminSidebar';
+import { getMRRequests, approveMRRequest, rejectMRRequest, deleteMRRequest } from '../services/api';
 
 const AdminMRRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -22,114 +22,85 @@ const AdminMRRequests = () => {
   const [processingId, setProcessingId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
-  const [error, setError] = useState('');
 
   useEffect(() => {
-    const loadFromLocalStorage = () => {
-      const savedRequests = JSON.parse(localStorage.getItem('mr_requests') || '[]');
-      savedRequests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setRequests(savedRequests);
-      setLoading(false);
-    };
-
-    loadFromLocalStorage();
-    
-    // Poll for changes every 2 seconds
-    const interval = setInterval(() => {
-      const updatedRequests = JSON.parse(localStorage.getItem('mr_requests') || '[]');
-      updatedRequests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setRequests(updatedRequests);
-    }, 2000);
-    
-    return () => clearInterval(interval);
+    fetchRequests();
   }, []);
 
-  const generatePassword = () => {
-    return Math.random().toString(36).slice(-10).toUpperCase();
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await getMRRequests();
+      const data = response.data?.data?.requests || response.data?.requests || response.data?.data || response.data || [];
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching MR requests:', error);
+      toast.error('Failed to load MR requests');
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleApprove = async (request) => {
-    setProcessingId(request.id);
-    setError('');
+    if (!confirm(`Approve MR application for ${request.name}?\n\nThis will create a user account and send login credentials via email.`)) {
+      return;
+    }
+
+    setProcessingId(request._id);
     try {
-      // Generate temporary password
-      const tempPassword = generatePassword();
+      const response = await approveMRRequest(request._id);
+      const credentials = response.data?.data?.credentials || {};
       
-      // Update localStorage
-      const savedRequests = JSON.parse(localStorage.getItem('mr_requests') || '[]');
-      const updatedRequests = savedRequests.map(req => 
-        req.id === request.id 
-          ? { 
-              ...req, 
-              status: 'approved', 
-              approved_at: new Date().toISOString(),
-              temp_password: tempPassword 
-            }
-          : req
+      toast.success(
+        `✅ Request approved!\n\nCredentials sent to ${request.email}\nPassword: ${credentials.tempPassword}`,
+        { duration: 10000 }
       );
-      localStorage.setItem('mr_requests', JSON.stringify(updatedRequests));
-      setRequests(updatedRequests);
       
-      toast.success(`✅ Request approved successfully!\nCredentials: ${request.email} / ${tempPassword}`, {
-        duration: 8000,
-      });
-      
+      // Refresh requests
+      fetchRequests();
     } catch (error) {
       console.error('Error approving request:', error);
-      setError('Error approving request: ' + error.message);
-      toast.error('Failed to approve request. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to approve request');
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleReject = async (request) => {
-    setProcessingId(request.id);
-    setError('');
+    const reason = prompt('Enter rejection reason (optional):');
+    if (reason === null) return; // User cancelled
+
+    setProcessingId(request._id);
     try {
-      // Update localStorage
-      const savedRequests = JSON.parse(localStorage.getItem('mr_requests') || '[]');
-      const updatedRequests = savedRequests.map(req => 
-        req.id === request.id 
-          ? { 
-              ...req, 
-              status: 'rejected', 
-              rejected_at: new Date().toISOString()
-            }
-          : req
-      );
-      localStorage.setItem('mr_requests', JSON.stringify(updatedRequests));
-      setRequests(updatedRequests);
+      await rejectMRRequest(request._id, reason);
+      toast.success('Request rejected and email sent');
       
-      toast.success(`Request rejected.`);
+      // Refresh requests
+      fetchRequests();
     } catch (error) {
       console.error('Error rejecting request:', error);
-      setError('Error rejecting request: ' + error.message);
-      toast.error('Failed to reject request. Please try again.');
+      toast.error(error.response?.data?.message || 'Failed to reject request');
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleDelete = async (request) => {
-    if (!confirm(`Are you sure you want to delete the request from ${request.name}?\n\nThis action cannot be undone.`)) {
+    if (!confirm(`Delete request from ${request.name}?\n\nThis action cannot be undone.`)) {
       return;
     }
 
-    setProcessingId(request.id);
-    setError('');
+    setProcessingId(request._id);
     try {
-      // Delete from localStorage
-      const savedRequests = JSON.parse(localStorage.getItem('mr_requests') || '[]');
-      const updatedRequests = savedRequests.filter(req => req.id !== request.id);
-      localStorage.setItem('mr_requests', JSON.stringify(updatedRequests));
-      setRequests(updatedRequests);
+      await deleteMRRequest(request._id);
+      toast.success('Request deleted successfully');
       
-      toast.success(`Request from ${request.name} removed from list`);
+      // Refresh requests
+      fetchRequests();
     } catch (error) {
       console.error('Error deleting request:', error);
-      setError('Error deleting request: ' + error.message);
-      toast.error('Failed to delete request. Please try again.');
+      toast.error('Failed to delete request');
     } finally {
       setProcessingId(null);
     }
@@ -184,22 +155,19 @@ const AdminMRRequests = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-50">
       <AdminNavbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-      <AdminSidebar isOpen={isSidebarOpen} />
+      <AdminSidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
       
-      <main className={`pt-20 transition-all duration-300 ${isSidebarOpen ? 'pl-64' : 'pl-16'}`}>
+      <main className={`pt-20 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-16'}`}>
         <div className="p-6">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">MR Access Requests</h1>
-            <p className="text-gray-600 mt-2">Review and manage Medical Representative access requests</p>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+              <ClipboardDocumentCheckIcon className="w-8 h-8 mr-3 text-primary-600" />
+              MR Access Requests
+            </h1>
+            <p className="text-gray-600 mt-1">Review and manage Medical Representative access requests</p>
           </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-              {error}
-            </div>
-          )}
 
           {/* Tabs */}
           <div className="mb-6">
@@ -207,27 +175,27 @@ const AdminMRRequests = () => {
               <nav className="-mb-px flex space-x-8">
                 <button
                   onClick={() => setActiveTab('pending')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                     activeTab === 'pending'
-                      ? 'border-[#1E586E] text-[#1E586E]'
+                      ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   Pending Requests
-                  <span className="ml-2 bg-yellow-100 text-yellow-800 py-1 px-2 rounded-full text-xs">
+                  <span className="ml-2 bg-yellow-100 text-yellow-800 py-1 px-2 rounded-full text-xs font-semibold">
                     {requests.filter(r => r.status === 'pending').length}
                   </span>
                 </button>
                 <button
                   onClick={() => setActiveTab('processed')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                     activeTab === 'processed'
-                      ? 'border-[#1E586E] text-[#1E586E]'
+                      ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   Processed Requests
-                  <span className="ml-2 bg-gray-100 text-gray-800 py-1 px-2 rounded-full text-xs">
+                  <span className="ml-2 bg-gray-100 text-gray-800 py-1 px-2 rounded-full text-xs font-semibold">
                     {requests.filter(r => r.status === 'approved' || r.status === 'rejected').length}
                   </span>
                 </button>
@@ -240,10 +208,14 @@ const AdminMRRequests = () => {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-xl shadow-sm border border-gray-200"
+            >
               {filteredRequests.length === 0 ? (
                 <div className="text-center py-12">
-                  <UserIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <ClipboardDocumentCheckIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     No {activeTab} requests found
                   </h3>
@@ -281,7 +253,7 @@ const AdminMRRequests = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredRequests.map((request) => (
                         <motion.tr
-                          key={request.id}
+                          key={request._id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           className="hover:bg-gray-50"
@@ -294,8 +266,8 @@ const AdminMRRequests = () => {
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-900">{request.name}</div>
                                 {request.experience && (
-                                  <div className="text-sm text-gray-500 truncate max-w-xs">
-                                    {request.experience.substring(0, 50)}...
+                                  <div className="text-sm text-gray-500 truncate max-w-xs" title={request.experience}>
+                                    {request.experience.substring(0, 50)}{request.experience.length > 50 ? '...' : ''}
                                   </div>
                                 )}
                               </div>
@@ -320,40 +292,50 @@ const AdminMRRequests = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatDate(request.created_at)}
+                            {formatDate(request.createdAt)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {getStatusBadge(request.status)}
+                            {request.processedAt && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {formatDate(request.processedAt)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {request.status === 'pending' ? (
                               <div className="flex space-x-2">
                                 <button
                                   onClick={() => handleApprove(request)}
-                                  disabled={processingId === request.id}
-                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200 disabled:opacity-50"
+                                  disabled={processingId === request._id}
+                                  className="inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50"
                                 >
-                                  {processingId === request.id ? 'Processing...' : 'Approve'}
+                                  <CheckCircleIcon className="w-4 h-4 mr-1" />
+                                  {processingId === request._id ? 'Processing...' : 'Approve'}
                                 </button>
                                 <button
                                   onClick={() => handleReject(request)}
-                                  disabled={processingId === request.id}
-                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200 disabled:opacity-50"
+                                  disabled={processingId === request._id}
+                                  className="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50"
                                 >
-                                  {processingId === request.id ? 'Processing...' : 'Reject'}
+                                  <XCircleIcon className="w-4 h-4 mr-1" />
+                                  {processingId === request._id ? 'Processing...' : 'Reject'}
                                 </button>
                               </div>
                             ) : (
                               <button
                                 onClick={() => handleDelete(request)}
-                                disabled={processingId === request.id}
-                                className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs font-medium transition-colors duration-200 disabled:opacity-50 flex items-center justify-center"
+                                disabled={processingId === request._id}
+                                className="inline-flex items-center bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50"
                                 title="Delete request"
                               >
-                                {processingId === request.id ? (
+                                {processingId === request._id ? (
                                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                 ) : (
-                                  <XMarkIcon className="w-4 h-4" />
+                                  <>
+                                    <XMarkIcon className="w-4 h-4 mr-1" />
+                                    Delete
+                                  </>
                                 )}
                               </button>
                             )}
@@ -364,7 +346,7 @@ const AdminMRRequests = () => {
                   </table>
                 </div>
               )}
-            </div>
+            </motion.div>
           )}
         </div>
       </main>

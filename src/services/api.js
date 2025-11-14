@@ -46,6 +46,7 @@ export const loginUser = (credentials) => api.post('/users/login', credentials);
 // ============ USER ENDPOINTS ============
 export const getUsers = (params) => api.get('/users', { params });
 export const getUserById = (id) => api.get(`/users/${id}`);
+export const getMyProfile = () => api.get('/users/me');
 export const createUser = (userData) => api.post('/users', userData);
 export const updateUser = (id, userData) => api.put(`/users/${id}`, userData);
 export const deleteUser = (id) => api.delete(`/users/${id}`);
@@ -80,7 +81,6 @@ export const createOrder = (orderData) => api.post('/orders', orderData);
 export const updateOrder = (id, orderData) => api.put(`/orders/${id}`, orderData);
 export const deleteOrder = (id) => api.delete(`/orders/${id}`);
 export const submitDoctorOrder = (orderData) => api.post('/orders', orderData);
-export const submitStockistOrder = (orderData) => api.post('/orders', orderData);
 
 // ============ MR TARGET ENDPOINTS ============
 export const getMRTargets = (params) => api.get('/mr-targets', { params });
@@ -101,21 +101,13 @@ export const fetchMRPerformance = () => api.get('/mr-performance');
 export const getProductActivity = (params) => api.get('/product-activity', { params });
 export const getProductActivityById = (id) => api.get(`/product-activity/${id}`);
 
-// ============ STOCKIST ENDPOINTS ============
-// Note: Stockists can be managed similar to doctors or as a separate entity
-// For now, returning mock data - you can create a backend endpoint later
-export const getStockists = () => {
-  // Mock stockist data - replace with actual API call when backend endpoint is ready
-  return Promise.resolve({
-    data: {
-      data: [
-        { _id: '1', name: 'Main Stockist', location: 'Mumbai', contact: '+91-9876543210' },
-        { _id: '2', name: 'Regional Stockist', location: 'Delhi', contact: '+91-9876543211' },
-        { _id: '3', name: 'Local Distributor', location: 'Bangalore', contact: '+91-9876543212' }
-      ]
-    }
-  });
-};
+// ============ MR REQUEST ENDPOINTS ============
+export const submitMRRequest = (requestData) => api.post('/mr-requests', requestData);
+export const getMRRequests = (params) => api.get('/mr-requests', { params });
+export const getMRRequestById = (id) => api.get(`/mr-requests/${id}`);
+export const approveMRRequest = (id) => api.put(`/mr-requests/${id}/approve`);
+export const rejectMRRequest = (id, reason) => api.put(`/mr-requests/${id}/reject`, { reason });
+export const deleteMRRequest = (id) => api.delete(`/mr-requests/${id}`);
 
 // ============ LEGACY/ALIAS ENDPOINTS ============
 export const getMRs = () => api.get('/users?role=MR');

@@ -1,161 +1,278 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { 
+  FunnelIcon, 
+  ArrowDownTrayIcon, 
+  MagnifyingGlassIcon,
+  DocumentChartBarIcon
+} from '@heroicons/react/24/outline';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminNavbar from '../components/AdminNavbar';
-import ExportButton from '../components/ExportButton';
+import { getVisitReports } from '../services/api';
+import toast from 'react-hot-toast';
 
 const AdminReports = () => {
   const [reports, setReports] = useState([]);
   const [filteredReports, setFilteredReports] = useState([]);
-  const [filters, setFilters] = useState({ doctorId: '', mrId: '', from: '', to: '' });
+  const [filters, setFilters] = useState({ search: '', mrId: '', from: '', to: '' });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const getReports = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const { getVisitReports } = await import('../services/api');
-        const params = {};
-        if (filters.mrId) params.mr = filters.mrId;
-        if (filters.doctorId) params.doctor = filters.doctorId;
-        if (filters.from) params.startDate = filters.from;
-        if (filters.to) params.endDate = filters.to;
-        
-        const response = await getVisitReports(params);
-        const data = response.data.data || [];
-        setReports(data);
-        setFilteredReports(data);
-      } catch (error) {
-        console.error("Failed to fetch reports", error);
-        setError(error.response?.data?.message || error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    getReports();
-  }, [filters.from, filters.to, filters.mrId, filters.doctorId]);
+    fetchReports();
+  }, [filters.from, filters.to]);
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (filters.from) params.startDate = filters.from;
+      if (filters.to) params.endDate = filters.to;
+      
+      const response = await getVisitReports(params);
+      const data = response.data?.data?.visits || response.data?.data || response.data || [];
+      setReports(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch reports", error);
+      toast.error(error.response?.data?.message || 'Failed to load reports');
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     let data = [...reports];
-    if (filters.doctorId) data = data.filter(r => r.doctor._id === filters.doctorId);
-    if (filters.mrId) data = data.filter(r => r.mr._id === filters.mrId);
+    
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      data = data.filter(r => 
+        r.doctor?.name?.toLowerCase().includes(search) ||
+        r.mr?.name?.toLowerCase().includes(search) ||
+        r.mr?.email?.toLowerCase().includes(search)
+      );
+    }
+    
+    if (filters.mrId) {
+      data = data.filter(r => (r.mr?._id || r.mr) === filters.mrId);
+    }
+    
     setFilteredReports(data);
-  }, [filters.doctorId, filters.mrId, reports]);
-
-  const uniqueDoctors = useMemo(() => {
-    return [...new Map(reports.map(item => [item.doctor._id, item.doctor])).values()];
-  }, [reports]);
+  }, [filters.search, filters.mrId, reports]);
 
   const uniqueMRs = useMemo(() => {
-    return [...new Map(reports.map(item => [item.mr._id, item.mr])).values()];
+    const mrMap = new Map();
+    reports.forEach(r => {
+      if (r.mr?._id) {
+        mrMap.set(r.mr._id, r.mr);
+      }
+    });
+    return Array.from(mrMap.values());
   }, [reports]);
 
-  const csvData = useMemo(() => 
-    filteredReports.map(report => ({
-      visitDate: new Date(report.visitDate).toLocaleDateString(),
-      doctorName: report.doctor.name,
-      doctorSpecialty: report.doctor.specialty,
-      mrName: report.mr.name,
-      mrEmployeeId: report.mr.employeeId,
-      productsDiscussed: report.productsDiscussed.map(p => p.product_name || p.name).join(', '),
-      notes: report.notes,
-      orders: (report.orders && report.orders.length > 0)
-        ? report.orders.map(o => `${(o.product && o.product.name) || o.product}: ${o.quantity}`).join('; ')
-        : '',
-    })),
-  [filteredReports]);
+  const exportToCSV = () => {
+    if (filteredReports.length === 0) {
+      toast.error('No reports to export');
+      return;
+    }
+
+    const headers = ['Visit Date', 'Doctor Name', 'Doctor Specialty', 'MR Name', 'MR Email', 'Products Discussed', 'Notes', 'Status'];
+    const csvRows = [headers.join(',')];
+    
+    filteredReports.forEach(report => {
+      const visitDate = new Date(report.visitDetails?.visitDate || report.visitDate).toLocaleDateString();
+      const doctorName = report.doctor?.name || 'N/A';
+      const doctorSpecialty = report.doctor?.specialty || report.doctor?.specialization || 'N/A';
+      const mrName = report.mr?.name || 'N/A';
+      const mrEmail = report.mr?.email || 'N/A';
+      const products = (report.interaction?.productsDiscussed || report.productsDiscussed || [])
+        .map(p => p.product?.basicInfo?.name || p.product?.name || p.name || 'Unknown')
+        .join('; ');
+      const notes = (report.interaction?.notes || report.notes || '').replace(/"/g, '""');
+      const status = report.status || 'N/A';
+      
+      csvRows.push([
+        `"${visitDate}"`,
+        `"${doctorName}"`,
+        `"${doctorSpecialty}"`,
+        `"${mrName}"`,
+        `"${mrEmail}"`,
+        `"${products}"`,
+        `"${notes}"`,
+        `"${status}"`
+      ].join(','));
+    });
+    
+    const csvData = csvRows.join('\n');
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `visit-reports-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${filteredReports.length} reports`);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-50">
       <AdminNavbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-      <AdminSidebar isOpen={isSidebarOpen} />
-      <main className={`pt-20 transition-all duration-300 ${isSidebarOpen ? 'pl-64' : 'pl-16'}`}>
+      <AdminSidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+      
+      <main className={`pt-20 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-16'}`}>
         <div className="p-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">Admin Reports</h1>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <select name="doctorId" value={filters.doctorId} onChange={handleFilterChange} className="form-input">
-                <option value="">All Doctors</option>
-                {uniqueDoctors.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}
-              </select>
-              <select name="mrId" value={filters.mrId} onChange={handleFilterChange} className="form-input">
-                <option value="">All MRs</option>
-                {uniqueMRs.map(m => <option key={m._id} value={m._id}>{m.name}</option>)}
-              </select>
-              <input type="date" name="from" value={filters.from} onChange={handleFilterChange} className="form-input" />
-              <input type="date" name="to" value={filters.to} onChange={handleFilterChange} className="form-input" />
-              <button onClick={() => setFilters({ doctorId: '', mrId: '', from: '', to: '' })} className="btn-secondary">Clear</button>
+          <div className="mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                  <DocumentChartBarIcon className="w-8 h-8 mr-3 text-primary-600" />
+                  Visit Reports
+                </h1>
+                <p className="text-gray-600 mt-1">View and analyze all visit reports</p>
+              </div>
+              <button
+                onClick={exportToCSV}
+                className="inline-flex items-center bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200"
+              >
+                <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
+                Export CSV
+              </button>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-700">Visit Data</h2>
-              <ExportButton data={csvData} filename="visit-reports.csv" />
+          {/* Filters */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6"
+          >
+            <div className="flex items-center mb-4">
+              <FunnelIcon className="w-5 h-5 text-gray-500 mr-2" />
+              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
             </div>
-            <div className="overflow-x-auto">
-              {loading ? (
-                <div className="text-center py-4">Loading reports...</div>
-              ) : error ? (
-                <div className="text-center py-4 text-red-500">Error: {error}</div>
-              ) : (
-                <table className="min-w-full bg-white">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="py-2 px-4 border-b text-left">Visit Date</th>
-                      <th className="py-2 px-4 border-b text-left">Doctor</th>
-                      <th className="py-2 px-4 border-b text-left">MR</th>
-                      <th className="py-2 px-4 border-b text-left">Products Discussed</th>
-                      <th className="py-2 px-4 border-b text-left">Notes</th>
-                      <th className="py-2 px-4 border-b text-left">Orders</th>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search doctor or MR..."
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <select
+                value={filters.mrId}
+                onChange={(e) => setFilters({ ...filters, mrId: e.target.value })}
+                className="form-input"
+              >
+                <option value="">All MRs</option>
+                {uniqueMRs.map(mr => (
+                  <option key={mr._id} value={mr._id}>{mr.name || mr.email}</option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={filters.from}
+                onChange={(e) => setFilters({ ...filters, from: e.target.value })}
+                className="form-input"
+                placeholder="From Date"
+              />
+              <input
+                type="date"
+                value={filters.to}
+                onChange={(e) => setFilters({ ...filters, to: e.target.value })}
+                className="form-input"
+                placeholder="To Date"
+              />
+            </div>
+            <div className="mt-4 flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                Showing {filteredReports.length} of {reports.length} reports
+              </p>
+              <button
+                onClick={() => setFilters({ search: '', mrId: '', from: '', to: '' })}
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Reports Table */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-200"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : filteredReports.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MR</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {filteredReports.length > 0 ? (
-                      filteredReports.map(report => (
-                        <tr key={report._id}>
-                          <td className="py-2 px-4 border-b">{new Date(report.visitDate).toLocaleDateString()}</td>
-                          <td className="py-2 px-4 border-b">
-                            {report.doctor?.name || 'N/A'} 
-                            {report.doctor?.specialty || report.doctor?.specialization ? ` (${report.doctor.specialty || report.doctor.specialization})` : ''}
-                          </td>
-                          <td className="py-2 px-4 border-b">{report.mr?.name || report.mr?.email || 'N/A'}</td>
-                          <td className="py-2 px-4 border-b">
-                            {report.productsDiscussed?.map(p => p.product_name || p.name || 'Unknown').join(', ') || 'N/A'}
-                          </td>
-                          <td className="py-2 px-4 border-b"><p className="truncate w-48">{report.notes || 'N/A'}</p></td>
-                          <td className="py-2 px-4 border-b">
-                            {report.orders && report.orders.length > 0 ? (
-                              <ul className="list-disc pl-4">
-                                {report.orders.map((order, idx) => (
-                                  <li key={idx}>
-                                    {order.product && (order.product.product_name || order.product.name) ? (order.product.product_name || order.product.name) : order.product} &times; {order.quantity}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <span className="text-gray-400">No orders</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan="6" className="text-center py-4">No reports found.</td></tr>
-                    )}
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredReports.map((report, index) => (
+                      <tr key={report._id || index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(report.visitDetails?.visitDate || report.visitDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{report.doctor?.name || 'N/A'}</div>
+                          <div className="text-sm text-gray-500">{report.doctor?.specialty || report.doctor?.specialization || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{report.mr?.name || 'N/A'}</div>
+                          <div className="text-sm text-gray-500">{report.mr?.email || 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs truncate">
+                            {(report.interaction?.productsDiscussed || report.productsDiscussed || [])
+                              .map(p => p.product?.basicInfo?.name || p.product?.name || p.name || 'Unknown')
+                              .join(', ') || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            report.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                            report.status === 'Submitted' ? 'bg-blue-100 text-blue-800' :
+                            report.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {report.status || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-500 max-w-xs truncate">
+                            {report.interaction?.notes || report.notes || 'No notes'}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-              )}
-            </div>
-          </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <DocumentChartBarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500 text-lg">No reports found</p>
+                <p className="text-gray-400 text-sm mt-1">Try adjusting your filters</p>
+              </div>
+            )}
+          </motion.div>
         </div>
       </main>
     </div>

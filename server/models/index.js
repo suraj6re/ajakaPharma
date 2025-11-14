@@ -9,6 +9,7 @@ const Order = require('./Order');
 const MRTarget = require('./MRTarget');
 const MRPerformanceLog = require('./MRPerformanceLog');
 const ProductActivityLog = require('./ProductActivityLog');
+const MRRequest = require('./MRRequest');
 
 module.exports = {
   User,
@@ -18,5 +19,6 @@ module.exports = {
   Order,
   MRTarget,
   MRPerformanceLog,
-  ProductActivityLog
+  ProductActivityLog,
+  MRRequest
 };

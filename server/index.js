@@ -85,6 +85,7 @@ app.use('/api/mr-targets', require('./routes/mrTargetRoutes'));
 app.use('/api/mr-performance', require('./routes/mrPerformanceRoutes'));
 app.use('/api/product-activity', require('./routes/productActivityRoutes'));
 app.use('/api/email', require('./routes/emailRoutes'));
+app.use('/api/mr-requests', require('./routes/mrRequestRoutes'));
 
 // ============================================
 // All routes are now handled by route modules above
