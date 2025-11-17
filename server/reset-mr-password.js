@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const mongoose = require('mongoose');
 const User = require('./models/User');
 
@@ -8,7 +9,7 @@ async function resetMRPassword() {
     console.log('✅ Connected to MongoDB\n');
 
     const mrEmail = 'mr@ajaka.com';
-    const newPassword = 'MR@123';
+    const newPassword = 'mr123';
 
     const user = await User.findOne({ email: mrEmail });
     

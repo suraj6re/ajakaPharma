@@ -22,6 +22,15 @@ const AdminMRRequests = () => {
   const [processingId, setProcessingId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
+  
+  // Modal states
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [credentials, setCredentials] = useState(null);
 
   useEffect(() => {
     fetchRequests();
@@ -42,20 +51,20 @@ const AdminMRRequests = () => {
     }
   };
 
-  const handleApprove = async (request) => {
-    if (!confirm(`Approve MR application for ${request.name}?\n\nThis will create a user account and send login credentials via email.`)) {
-      return;
-    }
-
-    setProcessingId(request._id);
+  const handleApprove = async () => {
+    if (!selectedRequest) return;
+    
+    setProcessingId(selectedRequest._id);
+    setShowApproveModal(false);
+    
     try {
-      const response = await approveMRRequest(request._id);
-      const credentials = response.data?.data?.credentials || {};
+      const response = await approveMRRequest(selectedRequest._id);
+      const creds = response.data?.data?.credentials || {};
       
-      toast.success(
-        `✅ Request approved!\n\nCredentials sent to ${request.email}\nPassword: ${credentials.tempPassword}`,
-        { duration: 10000 }
-      );
+      setCredentials(creds);
+      setShowCredentialsModal(true);
+      
+      toast.success('Request approved successfully!');
       
       // Refresh requests
       fetchRequests();
@@ -64,16 +73,18 @@ const AdminMRRequests = () => {
       toast.error(error.response?.data?.message || 'Failed to approve request');
     } finally {
       setProcessingId(null);
+      setSelectedRequest(null);
     }
   };
 
-  const handleReject = async (request) => {
-    const reason = prompt('Enter rejection reason (optional):');
-    if (reason === null) return; // User cancelled
-
-    setProcessingId(request._id);
+  const handleReject = async () => {
+    if (!selectedRequest) return;
+    
+    setProcessingId(selectedRequest._id);
+    setShowRejectModal(false);
+    
     try {
-      await rejectMRRequest(request._id, reason);
+      await rejectMRRequest(selectedRequest._id, rejectionReason);
       toast.success('Request rejected and email sent');
       
       // Refresh requests
@@ -83,17 +94,19 @@ const AdminMRRequests = () => {
       toast.error(error.response?.data?.message || 'Failed to reject request');
     } finally {
       setProcessingId(null);
+      setSelectedRequest(null);
+      setRejectionReason('');
     }
   };
 
-  const handleDelete = async (request) => {
-    if (!confirm(`Delete request from ${request.name}?\n\nThis action cannot be undone.`)) {
-      return;
-    }
-
-    setProcessingId(request._id);
+  const handleDelete = async () => {
+    if (!selectedRequest) return;
+    
+    setProcessingId(selectedRequest._id);
+    setShowDeleteModal(false);
+    
     try {
-      await deleteMRRequest(request._id);
+      await deleteMRRequest(selectedRequest._id);
       toast.success('Request deleted successfully');
       
       // Refresh requests
@@ -103,6 +116,7 @@ const AdminMRRequests = () => {
       toast.error('Failed to delete request');
     } finally {
       setProcessingId(null);
+      setSelectedRequest(null);
     }
   };
 
@@ -306,7 +320,10 @@ const AdminMRRequests = () => {
                             {request.status === 'pending' ? (
                               <div className="flex space-x-2">
                                 <button
-                                  onClick={() => handleApprove(request)}
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setShowApproveModal(true);
+                                  }}
                                   disabled={processingId === request._id}
                                   className="inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50"
                                 >
@@ -314,7 +331,10 @@ const AdminMRRequests = () => {
                                   {processingId === request._id ? 'Processing...' : 'Approve'}
                                 </button>
                                 <button
-                                  onClick={() => handleReject(request)}
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setShowRejectModal(true);
+                                  }}
                                   disabled={processingId === request._id}
                                   className="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50"
                                 >
@@ -324,7 +344,10 @@ const AdminMRRequests = () => {
                               </div>
                             ) : (
                               <button
-                                onClick={() => handleDelete(request)}
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setShowDeleteModal(true);
+                                }}
                                 disabled={processingId === request._id}
                                 className="inline-flex items-center bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50"
                                 title="Delete request"
@@ -350,6 +373,224 @@ const AdminMRRequests = () => {
           )}
         </div>
       </main>
+
+      {/* Approve Confirmation Modal */}
+      {showApproveModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mx-auto mb-4">
+              <CheckCircleIcon className="w-6 h-6 text-green-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+              Approve MR Application
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              Approve application for <strong>{selectedRequest.name}</strong>?
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-800">
+                <strong>This will:</strong>
+              </p>
+              <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
+                <li>Create a user account</li>
+                <li>Generate login credentials</li>
+                <li>Send credentials via email to {selectedRequest.email}</li>
+              </ul>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setSelectedRequest(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApprove}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Approve
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+              <XCircleIcon className="w-6 h-6 text-red-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+              Reject MR Application
+            </h3>
+            <p className="text-gray-600 text-center mb-4">
+              Reject application from <strong>{selectedRequest.name}</strong>?
+            </p>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Rejection Reason (Optional)
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Enter reason for rejection..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                rows="3"
+              />
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setSelectedRequest(null);
+                  setRejectionReason('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Reject
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+              <XMarkIcon className="w-6 h-6 text-red-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+              Delete Request
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              Delete request from <strong>{selectedRequest.name}</strong>?
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-red-800 text-center">
+                ⚠️ This action cannot be undone
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedRequest(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Credentials Display Modal */}
+      {showCredentialsModal && credentials && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6"
+          >
+            <div className="flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mx-auto mb-4">
+              <CheckCircleIcon className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 text-center mb-2">
+              Request Approved Successfully!
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              User account created and credentials sent via email
+            </p>
+            
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 mb-6">
+              <h4 className="text-sm font-semibold text-green-900 mb-4 flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                Login Credentials
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-green-700 uppercase tracking-wide">Email</label>
+                  <div className="mt-1 flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-green-200">
+                    <span className="text-gray-900 font-mono text-sm">{credentials.email}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(credentials.email);
+                        toast.success('Email copied!');
+                      }}
+                      className="text-green-600 hover:text-green-700 text-xs font-medium"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-green-700 uppercase tracking-wide">Temporary Password</label>
+                  <div className="mt-1 flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-green-200">
+                    <span className="text-gray-900 font-mono text-lg font-bold">{credentials.tempPassword}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(credentials.tempPassword);
+                        toast.success('Password copied!');
+                      }}
+                      className="text-green-600 hover:text-green-700 text-xs font-medium"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-800">
+                <strong>📧 Email Sent:</strong> Login credentials have been sent to the applicant's email address.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowCredentialsModal(false);
+                setCredentials(null);
+              }}
+              className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            >
+              Done
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

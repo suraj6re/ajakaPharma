@@ -1,57 +1,41 @@
-const axios = require('axios');
+const nodemailer = require('nodemailer');
 
 /**
- * Brevo (formerly Sendinblue) Email Service
+ * Nodemailer Email Service with Gmail
  */
 class EmailService {
   constructor() {
-    this.apiKey = process.env.BREVO_API_KEY;
-    this.senderEmail = process.env.BREVO_SENDER_EMAIL || 'noreply@ajakapharma.com';
-    this.senderName = process.env.BREVO_SENDER_NAME || 'Ajaka Pharma';
-    this.apiUrl = 'https://api.brevo.com/v3/smtp/email';
+    this.senderEmail = process.env.EMAIL_USER || 'suraj6re@gmail.com';
+    this.senderName = process.env.EMAIL_SENDER_NAME || 'Ajaka Pharma';
+    
+    // Create transporter with Gmail
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER || 'suraj6re@gmail.com',
+        pass: process.env.EMAIL_APP_PASSWORD || 'ximw pfkv hzsk tevz'
+      }
+    });
   }
 
   /**
-   * Send email using Brevo API
+   * Send email using Nodemailer
    */
   async sendEmail(to, subject, htmlContent) {
-    if (!this.apiKey || this.apiKey === 'your_brevo_api_key_here') {
-      console.log('⚠️ Brevo API key not configured. Email not sent.');
-      console.log('📧 Would send email to:', to);
-      console.log('📧 Subject:', subject);
-      return { success: false, message: 'Email service not configured' };
-    }
-
     try {
-      const response = await axios.post(
-        this.apiUrl,
-        {
-          sender: {
-            name: this.senderName,
-            email: this.senderEmail
-          },
-          to: [
-            {
-              email: to,
-              name: to.split('@')[0]
-            }
-          ],
-          subject: subject,
-          htmlContent: htmlContent
-        },
-        {
-          headers: {
-            'accept': 'application/json',
-            'api-key': this.apiKey,
-            'content-type': 'application/json'
-          }
-        }
-      );
+      const mailOptions = {
+        from: `"${this.senderName}" <${this.senderEmail}>`,
+        to: to,
+        subject: subject,
+        html: htmlContent
+      };
 
+      const info = await this.transporter.sendMail(mailOptions);
       console.log('✅ Email sent successfully to:', to);
-      return { success: true, messageId: response.data.messageId };
+      console.log('📧 Message ID:', info.messageId);
+      return { success: true, messageId: info.messageId };
     } catch (error) {
-      console.error('❌ Error sending email:', error.response?.data || error.message);
+      console.error('❌ Error sending email:', error.message);
       return { success: false, error: error.message };
     }
   }

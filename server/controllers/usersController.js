@@ -12,12 +12,22 @@ const jwt = require('jsonwebtoken');
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password, role } = req.body;
 
+  // Debug logging
+  console.log('🔐 Login attempt:', {
+    email,
+    passwordLength: password?.length,
+    role,
+    timestamp: new Date().toISOString()
+  });
+
   if (!email || !password) {
+    console.log('❌ Missing email or password');
     return ApiResponse.badRequest(res, 'Email and password are required');
   }
 
   // Find user by email
   const user = await User.findOne({ email, isActive: true });
+  console.log('👤 User found:', user ? `Yes (${user.name}, ${user.role})` : 'No');
   
   if (!user) {
     return ApiResponse.unauthorized(res, 'Invalid credentials');
@@ -25,15 +35,20 @@ const loginUser = asyncHandler(async (req, res) => {
 
   // Check password
   const isPasswordValid = await bcrypt.compare(password, user.password);
+  console.log('🔑 Password valid:', isPasswordValid);
   
   if (!isPasswordValid) {
+    console.log('❌ Invalid password');
     return ApiResponse.unauthorized(res, 'Invalid credentials');
   }
 
   // Check role if specified
   if (role && user.role?.toLowerCase() !== role.toLowerCase()) {
+    console.log('❌ Role mismatch:', { expected: role, actual: user.role });
     return ApiResponse.forbidden(res, `This account is not registered as ${role}`);
   }
+  
+  console.log('✅ Login successful for:', user.email);
 
   // Generate JWT token
   const token = jwt.sign(

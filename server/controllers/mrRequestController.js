@@ -2,7 +2,6 @@ const { MRRequest, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiResponse = require('../utils/apiResponse');
 const emailService = require('../services/emailService');
-const bcrypt = require('bcryptjs');
 
 /**
  * @desc    Submit MR access request
@@ -123,17 +122,16 @@ const approveRequest = asyncHandler(async (req, res) => {
 
   // Generate temporary password
   const tempPassword = Math.random().toString(36).slice(-10).toUpperCase();
-  const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
+  
   // Generate employee ID
   const userCount = await User.countDocuments({ role: 'MR' });
   const employeeId = `MR${String(userCount + 1).padStart(3, '0')}`;
 
-  // Create user account
+  // Create user account (pass plain text password - pre-save hook will hash it)
   const newUser = await User.create({
     name: request.name,
     email: request.email,
-    password: hashedPassword,
+    password: tempPassword,  // Plain text - User model will hash it
     role: 'MR',
     employeeId,
     phone: request.phone,
@@ -153,9 +151,15 @@ const approveRequest = asyncHandler(async (req, res) => {
 
   // Send approval email
   try {
-    await emailService.sendApprovalEmail(request.email, tempPassword);
+    console.log('📧 Attempting to send approval email to:', request.email);
+    const emailResult = await emailService.sendApprovalEmail(request.email, tempPassword);
+    if (emailResult.success) {
+      console.log('✅ Approval email sent successfully');
+    } else {
+      console.error('❌ Failed to send approval email:', emailResult.error);
+    }
   } catch (emailError) {
-    console.error('Failed to send approval email:', emailError);
+    console.error('❌ Exception sending approval email:', emailError);
     // Don't fail the approval if email fails
   }
 
